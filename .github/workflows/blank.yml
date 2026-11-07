@@ -1,0 +1,50 @@
+name: Bina APK VF
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Pilih sumber Android
+        shell: bash
+        run: |
+          if [[ -f settings.gradle && -f app/build.gradle ]]; then
+            echo "VF_PROJECT_DIR=." >> "$GITHUB_ENV"
+          elif [[ -f VF-IR-Android.zip ]]; then
+            unzip -q VF-IR-Android.zip -d .vf-android-build
+            echo "VF_PROJECT_DIR=.vf-android-build" >> "$GITHUB_ENV"
+          else
+            echo "Muat naik VF-IR-Android.zip ke akar repositori."
+            exit 1
+          fi
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.9"
+      - name: Sediakan SDK Android 35
+        shell: bash
+        run: sdkmanager "platforms;android-35" "build-tools;34.0.0"
+      - name: Bina APK ujian
+        shell: bash
+        run: |
+          gradle --project-dir "$VF_PROJECT_DIR" --no-daemon :app:assembleDebug
+          mkdir -p vf-artifact
+          cp "$VF_PROJECT_DIR/app/build/outputs/apk/debug/app-debug.apk" vf-artifact/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vf-ir-remote-apk
+          path: vf-artifact/app-debug.apk
+          if-no-files-found: error
